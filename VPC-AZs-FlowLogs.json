@@ -1,0 +1,337 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+	"Parameters": {
+		"VPCBlock": {
+			"Type": "String",
+			"Default": "10.10.0.0/16",
+			"Description": "Range de IPs da VPC"
+		},
+		"VPCName": {
+			"Type": "String",
+			"Default": "MyVPC",
+			"Description": "Nome do VPC"
+		},
+		"VPCSubnetPrivAIPRange": {
+			"Type": "String",
+			"Default": "10.10.1.0/24",
+			"Description": "Range de IP da Subnet Privada A"
+		},
+		"VPCSubnetPrivBIPRange": {
+			"Type": "String",
+			"Default": "10.10.2.0/24",
+			"Description": "Range de IP da Subnet Privada B"
+		},
+		"VPCSubnetPrivCIPRange": {
+			"Type": "String",
+			"Default": "10.10.3.0/24",
+			"Description": "Range de IP da Subnet Privada C"
+		},
+		"VPCSubnetPubAIPRange": {
+			"Type": "String",
+			"Default": "10.10.5.0/24",
+			"Description": "Range de IP da Subnet Publica A"
+		},
+		"VPCSubnetPubBIPRange": {
+			"Type": "String",
+			"Default": "10.10.6.0/24",
+			"Description": "Range de IP da Subnet Publica B"
+		},
+		"VPCSubnetPubCIPRange": {
+			"Type": "String",
+			"Default": "10.10.7.0/24",
+			"Description": "Range de IP da Subnet Publica C"
+		},
+		"Az1": {
+			"Type": "String",
+			"Default": "us-east-1a",
+			"Description": "Primeira zona de disponibilidade - AZ"
+		},
+		"Az2": {
+			"Type": "String",
+			"Default": "us-east-1b",
+			"Description": "Segunda zona de disponibilidade - AZ"
+		},
+		"Az3": {
+			"Type": "String",
+			"Default": "us-east-1c",
+			"Description": "Terceira zona de disponibilidade - AZ"
+		}
+	},
+	"Resources": {
+		"MyVPC": {
+			"Type" : "AWS::EC2::VPC",
+			"Properties" : {
+				"CidrBlock" : {"Ref": "VPCBlock"},
+				"EnableDnsHostnames" : true,
+				"EnableDnsSupport" : true,
+				"InstanceTenancy" : "default",
+				"Tags" : [
+					{
+						"Key" : "Name",
+						"Value" : {"Ref": "VPCName"}
+					}
+				]
+			}
+		},
+		"VPCFlowLogsRole": {
+			"Type":"AWS::IAM::Role",
+			"Properties":{
+				"RoleName": "FlowLogsRole",
+				"AssumeRolePolicyDocument":{
+					"Statement":[
+						{
+							"Effect":"Allow",
+							"Principal": {
+								"Service": "vpc-flow-logs.amazonaws.com"
+							},
+							"Action":["sts:AssumeRole"]
+						}
+					]
+				}
+			}
+		},
+		"VPCFlowLogsRolePolicy": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": "FlowLogs",
+      			"PolicyDocument": {
+					"Statement": [
+						{
+							"Action": [
+								"logs:CreateLogGroup",
+								"logs:CreateLogStream",
+								"logs:DescribeLogGroups",
+								"logs:DescribeLogStreams",
+								"logs:PutLogEvents"
+            				],
+							"Effect": "Allow",
+							"Resource": "*"
+						}
+					]
+				},
+				"Roles": [
+					{"Ref": "VPCFlowLogsRole"}
+				]
+			}
+		},
+		"VPCFlowLogs": {
+			"Type" : "AWS::EC2::FlowLog",
+			"DependsOn" : "VPCFlowLogsRole",
+			"Properties" : {
+				"DeliverLogsPermissionArn" : {"Fn::GetAtt": ["VPCFlowLogsRole", "Arn"]},
+				"LogDestinationType" : "cloud-watch-logs",
+				"LogGroupName" : "String",
+				"ResourceId" : {"Ref": "MyVPC"},
+				"ResourceType" : "VPC",
+				"TrafficType" : "ALL"
+    		}
+		},
+		"InternetGatewayProd": {
+			"Type" : "AWS::EC2::InternetGateway",
+			"Properties" : {
+				"Tags" : [
+					{"Key" : "Name", "Value" : "IGW-MyVPC"}
+				]
+			}
+		},
+		"IGWAttachmentMyVPC": {
+			"Type" : "AWS::EC2::VPCGatewayAttachment",
+			"DependsOn" : ["MyVPC", "InternetGatewayProd"],
+			"Properties" : {
+				"InternetGatewayId" : {"Ref": "InternetGatewayProd"},
+				"VpcId" : {"Ref": "MyVPC"}
+			}
+		},
+		"SubnetPrivA": {
+			"Type" : "AWS::EC2::Subnet",
+			"Properties" : {
+				"AvailabilityZone" : {"Ref": "Az1"},
+				"CidrBlock" : {"Ref": "VPCSubnetPrivAIPRange"},
+				"MapPublicIpOnLaunch" : false,
+				"Tags" : [
+					{"Key" : "Name", "Value" : "SubnetPrivA"}
+				],
+				"VpcId" : {"Ref": "MyVPC"}
+			}
+		},
+		"SubnetPrivB": {
+			"Type" : "AWS::EC2::Subnet",
+			"Properties" : {
+				"AvailabilityZone" : {"Ref": "Az2"},
+				"CidrBlock" : {"Ref": "VPCSubnetPrivBIPRange"},
+				"MapPublicIpOnLaunch" : false,
+				"Tags" : [
+					{"Key" : "Name", "Value" : "SubnetPrivB"}
+				],
+				"VpcId" : {"Ref": "MyVPC"}
+			}
+		},
+		"SubnetPrivC": {
+			"Type" : "AWS::EC2::Subnet",
+			"Properties" : {
+				"AvailabilityZone" : {"Ref": "Az3"},
+				"CidrBlock" : {"Ref": "VPCSubnetPrivCIPRange"},
+				"MapPublicIpOnLaunch" : false,
+				"Tags" : [
+					{"Key" : "Name", "Value" : "SubnetPrivC"}
+				],
+				"VpcId" : {"Ref": "MyVPC"}
+			}
+		},
+		"SubnetPubA": {
+			"Type" : "AWS::EC2::Subnet",
+			"Properties" : {
+				"AvailabilityZone" : {"Ref": "Az1"},
+				"CidrBlock" : {"Ref": "VPCSubnetPubAIPRange"},
+				"MapPublicIpOnLaunch" : true,
+				"Tags" : [
+					{"Key" : "Name", "Value" : "SubnetPubA"}
+				],
+				"VpcId" : {"Ref": "MyVPC"}
+			}
+		},
+		"SubnetPubB": {
+			"Type" : "AWS::EC2::Subnet",
+			"Properties" : {
+				"AvailabilityZone" : {"Ref": "Az2"},
+				"CidrBlock" : {"Ref": "VPCSubnetPubBIPRange"},
+				"MapPublicIpOnLaunch" : true,
+				"Tags" : [
+					{"Key" : "Name", "Value" : "SubnetPubB"}
+				],
+				"VpcId" : {"Ref": "MyVPC"}
+			}
+		},
+		"SubnetPubC": {
+			"Type" : "AWS::EC2::Subnet",
+			"Properties" : {
+				"AvailabilityZone" : {"Ref": "Az3"},
+				"CidrBlock" : {"Ref": "VPCSubnetPubCIPRange"},
+				"MapPublicIpOnLaunch" : true,
+				"Tags" : [
+					{"Key" : "Name", "Value" : "SubnetPubC"}
+				],
+				"VpcId" : {"Ref": "MyVPC"}
+			}
+		},
+		"ElasticIPNAT" : {
+			"Type" : "AWS::EC2::EIP",
+			"DependsOn" : "IGWAttachmentMyVPC",
+			"Properties" : {
+				"Domain" : "vpc"
+			}
+		},
+		"NATGateway" : {
+			"Type" : "AWS::EC2::NatGateway",
+			"Properties" : {
+				"AllocationId" : { "Fn::GetAtt" : ["ElasticIPNAT", "AllocationId"]},
+				"SubnetId" : { "Ref" : "SubnetPubA"},
+				"Tags" : [
+					{"Key" : "Name", "Value" : "NATProd"}
+				]
+			}
+		},
+		"RTPriv": {
+			"Type" : "AWS::EC2::RouteTable",
+			"Properties" : {
+				"VpcId" : {"Ref": "MyVPC"},
+				"Tags" : [
+					{"Key" : "Name", "Value" : "RTPriv"}
+				]
+			}
+		},
+		"RTPub": {
+			"Type" : "AWS::EC2::RouteTable",
+			"Properties" : {
+				"VpcId" : {"Ref": "MyVPC"},
+				"Tags" : [
+					{"Key" : "Name", "Value" : "RTPub"}
+				]
+			}
+		},
+		"RouteNAT" : {
+			"Type" : "AWS::EC2::Route",
+			"Properties" : {
+				"RouteTableId" : { "Ref" : "RTPriv" },
+				"DestinationCidrBlock" : "0.0.0.0/0",
+				"NatGatewayId" : { "Ref" : "NATGateway" }
+			}
+		},
+		"RouteIGW" : {
+			"Type" : "AWS::EC2::Route",
+			"Properties" : {
+				"RouteTableId" : { "Ref" : "RTPub" },
+				"DestinationCidrBlock" : "0.0.0.0/0",
+				"GatewayId" : { "Ref" : "InternetGatewayProd" }
+			}
+		},
+		"RTPrivSubPrivAAssociation": {
+			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
+			"Properties" : {
+				"RouteTableId" : {"Ref": "RTPriv"},
+				"SubnetId" : {"Ref": "SubnetPrivA"}
+			}
+		},
+		"RTPrivSubPrivBAssociation": {
+			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
+			"Properties" : {
+				"RouteTableId" : {"Ref": "RTPriv"},
+				"SubnetId" : {"Ref": "SubnetPrivB"}
+			}
+		},
+		"RTPrivSubPrivCAssociation": {
+			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
+			"Properties" : {
+				"RouteTableId" : {"Ref": "RTPriv"},
+				"SubnetId" : {"Ref": "SubnetPrivC"}
+			}
+		},
+		"RTPubSubPubAAssociation": {
+			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
+			"Properties" : {
+				"RouteTableId" : {"Ref": "RTPub"},
+				"SubnetId" : {"Ref": "SubnetPubA"}
+			}
+		},
+		"RTPubSubPubBAssociation": {
+			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
+			"Properties" : {
+				"RouteTableId" : {"Ref": "RTPub"},
+				"SubnetId" : {"Ref": "SubnetPubB"}
+			}
+		},
+		"RTPubSubPubCAssociation": {
+			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
+			"Properties" : {
+				"RouteTableId" : {"Ref": "RTPub"},
+				"SubnetId" : {"Ref": "SubnetPubC"}
+			}
+		},
+		"S3Endpoint":{
+			"Type": "AWS::EC2::VPCEndpoint",
+			"Properties":{
+				"VpcId": {"Ref": "MyVPC"},
+				"RouteTableIds": [
+					{"Ref": "RTPriv"},
+					{"Ref": "RTPub"}
+				],
+				"ServiceName": "com.amazonaws.us-east-1.s3",
+				"PolicyDocument": "{\"Version\":\"2008-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"*\",\"Resource\":\"*\"}]}",
+				"VpcEndpointType": "Gateway"
+			}
+		},
+		"DynamoDBEndpoint":{
+			"Type": "AWS::EC2::VPCEndpoint",
+			"Properties":{
+				"VpcId": {"Ref": "MyVPC"},
+				"RouteTableIds": [
+					{"Ref": "RTPriv"},
+					{"Ref": "RTPub"}
+				],
+				"ServiceName": "com.amazonaws.us-east-1.dynamodb",
+				"PolicyDocument": "{\"Version\":\"2008-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"*\",\"Resource\":\"*\"}]}",
+				"VpcEndpointType": "Gateway"
+			}
+		}
+	}
+}
